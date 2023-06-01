@@ -136,24 +136,61 @@ impl<'a, 'b> FunctionGenerator<'a, 'b> {
         }
     }
 
-    // fn extern_sig(&mut self, module_name: &str, raw_function_name: &str, sig: &WasmSignature) -> String {
-    //     // TODO: WebAssembly supports functions with multiple return values, need to see if it's possible
-    //     // to link to such a function and call it in Zig.
-    //     // There are .wat examples of these functions online, so it should be possible to turn one of these
-    //     // examples into a module and try to link to it. Also maybe try writing a Zig function that returns
-    //     // a tuple like struct{u8, u8}, compile it to wasm, convert that into .wat and see if it matches
-    //     // the .wat examples for multiple return values.
-    //     //
-    //     // If it's just not possible to link/call such a function from Zig, should probably open an issue on
-    //     // the Zig compiler repo about it since Zig is supposed to work well with WebAssembly and 
-    //     // multi-return has been standard for a couple years now. Having to link to a module that uses
-    //     // multi-return is a very real possibility, especially with the new component model.
-    //     // There are (rather convoluted) ways of supporting it in both C and Rust, Zig ought to have some
-    //     // way to do it.
-    //     assert!(sig.results.len() < 2);
-    //     let function_name = to_zig_ident(raw_function_name);
-    //     format!("extern \"{module_name}\" fn {function_name}() {};\n")
-    // }
+    // No interpolation making new strings so I think 'static is safe here?
+    fn wasm_to_zig_type(ty: WasmType) -> &'static str {
+        match ty {
+            WasmType::F32 => "f32",
+            WasmType::F64 => "f64",
+            WasmType::I32 => "i32",
+            WasmType::I64 => "i64",
+        }
+    }
+
+    fn extern_sig(&mut self, module_name: &str, raw_function_name: &str, sig: &WasmSignature) -> String {
+        // TODO: It doesn't look like Zig has a way do deal with multi-return on its own, however
+        // it *might* be possible to do this with inline assembly. Documentation on how inline asm works
+        // with webassembly is almost non-existant, but it looks like it uses a wasm-specific version of
+        // the GNU Assembler syntax; see:
+        // https://www.rowleydownload.co.uk/arm/documentation/gnu/as/WebAssembly_002dDependent.html#WebAssembly_002dDependent
+        // https://github.com/ziglang/zig/issues/13129
+        // https://github.com/ziglang/zig/issues/13165
+        //
+        // So I see two possible ways of doing it with inline assembly:
+        //
+        // The Hard Way - Use module-level assembly to define the extern as well as an adapter function,
+        // which calls the extern and coerces its multi-return value into a packed struct (or maybe use
+        // a return pointer). Zig would then be able to call the adapter function directly.
+        //
+        // The Harder Way - Use module-level assembly to define the extern and use regular inline assembly in
+        // each place the function is called to unpack the multi-return value into the caller's local variables.
+        // Probably the more efficient way to do it.
+        //
+        // Of course, host modules will have to do something else entirely, but that's probably wasmtime's problem.
+        //
+        // In the long run, I think I'm gonna need to have a chat with the Zig compiler devs and see if there's
+        // a way Zig can support this using a builtin or something. I'm thinking maybe something like:
+        // extern fn divmod(i32, i32) @wasmMultiReturn(i32, i32);
+        // When you call it, you get back a special multi-return type, but it behaves the same way as a tuple
+        // so you can unpack it with something like divmod_result.@"0", divmod_result.@"1", etc.
+        // For exports we could either define another builtin for constructing values, or have anonymous structs
+        // coerce into multi-returns, so maybe either
+        // export fn divmod(a: i32, b: i32) @wasmMultiReturn(i32, i32) {
+        //     return @wasmMultiReturnValue(a / b, a % b);
+        // }
+        // or
+        // export fn divmod(a: i32, b: i32) @wasmMultiReturn(i32, i32) {
+        //     return .{ a / b, a % b };
+        // }
+        let return_sig = match sig.results.len() {
+            0 => "void",
+            1 => Self::wasm_to_zig_type(sig.results[0]),
+
+            _ => unimplemented!("Multi-value return currently not supported."),
+        };
+
+        let function_name = to_zig_ident(raw_function_name);
+        format!("extern \"{module_name}\" fn {function_name}() {return_sig};\n")
+    }
 }
 
 impl Bindgen for FunctionGenerator<'_, '_> {
