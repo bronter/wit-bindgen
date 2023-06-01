@@ -60,6 +60,9 @@ jobs:
     - uses: acifani/setup-tinygo@v1
       with:
         tinygo-version: 0.27.0
+    - uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.10.1
     - run: cargo test --workspace
     - run: cargo build
     - run: cargo build --no-default-features
@@ -67,6 +70,7 @@ jobs:
     - run: cargo build --no-default-features --features c
     - run: cargo build --no-default-features --features teavm-java
     - run: cargo build --no-default-features --features go
+    - run: cargo build --no-default-features --features zig
     - run: cargo build --no-default-features --features markdown
 
 
