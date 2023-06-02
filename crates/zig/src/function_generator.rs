@@ -147,7 +147,7 @@ impl<'a, 'b> FunctionGenerator<'a, 'b> {
     }
 
     fn extern_sig(&mut self, module_name: &str, raw_function_name: &str, sig: &WasmSignature) -> String {
-        // TODO: It doesn't look like Zig has a way do deal with multi-return on its own, however
+        // TODO: It doesn't look like Zig has a way do deal with multi-value return on its own, however
         // it *might* be possible to do this with inline assembly. Documentation on how inline asm works
         // with webassembly is almost non-existant, but it looks like it uses a wasm-specific version of
         // the GNU Assembler syntax; see:
@@ -158,11 +158,11 @@ impl<'a, 'b> FunctionGenerator<'a, 'b> {
         // So I see two possible ways of doing it with inline assembly:
         //
         // The Hard Way - Use module-level assembly to define the extern as well as an adapter function,
-        // which calls the extern and coerces its multi-return value into a packed struct (or maybe use
+        // which calls the extern and coerces its multi-value return value into a packed struct (or maybe use
         // a return pointer). Zig would then be able to call the adapter function directly.
         //
         // The Harder Way - Use module-level assembly to define the extern and use regular inline assembly in
-        // each place the function is called to unpack the multi-return value into the caller's local variables.
+        // each place the function is called to unpack the multi-value return value into the caller's local variables.
         // Probably the more efficient way to do it.
         //
         // Of course, host modules will have to do something else entirely, but that's probably wasmtime's problem.
@@ -170,10 +170,10 @@ impl<'a, 'b> FunctionGenerator<'a, 'b> {
         // In the long run, I think I'm gonna need to have a chat with the Zig compiler devs and see if there's
         // a way Zig can support this using a builtin or something. I'm thinking maybe something like:
         // extern fn divmod(i32, i32) @wasmMultiReturn(i32, i32);
-        // When you call it, you get back a special multi-return type, but it behaves the same way as a tuple
+        // When you call it, you get back a special multi-value return type, but it behaves the same way as a tuple
         // so you can unpack it with something like divmod_result.@"0", divmod_result.@"1", etc.
         // For exports we could either define another builtin for constructing values, or have anonymous structs
-        // coerce into multi-returns, so maybe either
+        // coerce into multi-value returns, so maybe either
         // export fn divmod(a: i32, b: i32) @wasmMultiReturn(i32, i32) {
         //     return @wasmMultiReturnValue(a / b, a % b);
         // }

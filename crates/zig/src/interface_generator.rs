@@ -336,8 +336,6 @@ impl<'a> InterfaceGenerator<'a> {
             None => "void",
         };
 
-        // make_wit_result_type retuns a tagged union type with .ok and .err cases,
-        // using the provided ok_type and error_type as the payload types.
         &format!("WITResult({ok_type}, {error_type})")
     }
 
@@ -371,7 +369,7 @@ impl<'a> InterfaceGenerator<'a> {
 
     fn list_type_def<'b>(&mut self, ty: &Type) -> &'b str {
         let type_name = self.type_def(ty);
-        // Apparently slices in Zig will keep track of their length at runtime?
+        // Apparently slices in Zig will keep track of their length at runtime
         &format!("[]{type_name}")
     }
 
@@ -397,7 +395,6 @@ impl<'a> InterfaceGenerator<'a> {
 
             Type::String => self.string_type_def(),
 
-            // I guess this is for non-primitive types other than string?
             Type::Id(id) => {
                 match self.get_type_name(id) {
                     Some(n) => &n,
@@ -409,7 +406,8 @@ impl<'a> InterfaceGenerator<'a> {
                             // Record here would be like an anonymous struct in Zig
                             TypeDefKind::Record(record) => self.record_type_def(id, record),
                             // Flags would probably be represented with unsigned integers in Zig;
-                            // Since we need a single type, we'll put all the flags into a struct
+                            // We generate a struct for each flag value for convenience
+                            // (TODO: Make sure the struct is comptime, otherwise we'll have to use constants)
                             TypeDefKind::Flags(flags) => self.flags_type_def(flags),
                             // Tuples are just anonymous structs in Zig, you use them all the time with std.debug.print
                             TypeDefKind::Tuple(tuple) => self.tuple_type_def(tuple),
@@ -419,8 +417,9 @@ impl<'a> InterfaceGenerator<'a> {
                             TypeDefKind::Enum(e) => self.enum_type_def(id, e),
                             // Zig has optional types built-in to the syntax
                             TypeDefKind::Option(ty) => self.optional_type_def(ty),
-                            // A Result would be sort of like an error union in Zig
-                            // Like optional types, this also has its own special syntax
+                            // WIT's Result type is like Rust's Result type; it is a (tagged) union of
+                            // an ok type and an err type, unlike Zig's errors which are sort of like
+                            // a union of an ok type an an enum (each error has a named integer value)
                             TypeDefKind::Result(result_) => self.result_type_def(result_),
                             TypeDefKind::Union(union) => self.union_type_def(union),
                             // If this is a list of anything but primitive types it is not likely to be canonical
