@@ -146,7 +146,7 @@ impl<'a, 'b> FunctionGenerator<'a, 'b> {
         }
     }
 
-    fn extern_sig(&mut self, module_name: &str, raw_function_name: &str, sig: &WasmSignature) -> String {
+    fn extern_decl(&mut self, module_name: &str, raw_function_name: &str, sig: &WasmSignature) -> String {
         // TODO: It doesn't look like Zig has a way do deal with multi-value return on its own, however
         // it *might* be possible to do this with inline assembly. Documentation on how inline asm works
         // with webassembly is almost non-existant, but it looks like it uses a wasm-specific version of
@@ -189,7 +189,9 @@ impl<'a, 'b> FunctionGenerator<'a, 'b> {
         };
 
         let function_name = to_zig_ident(raw_function_name);
-        format!("extern \"{module_name}\" fn {function_name}() {return_sig};\n")
+        let import_sig = format!("extern \"{module_name}\" fn {function_name}() {return_sig};\n");
+        self.interface_gen.wasm_import_func_sigs.insert(import_sig);
+        function_name
     }
 }
 
@@ -839,21 +841,21 @@ impl Bindgen for FunctionGenerator<'_, '_> {
             }
 
             Instruction::CallWasm { name, sig } => {
-                let func = self.extern_sig(
-                    self.gen.wasm_import_module.unwrap(),
+                let func_name = self.extern_decl(
+                    &self.interface_gen.wasm_import_module,
                     name,
                     sig,
                 );
 
-                // ... then call the function with all our operands
+                // Call the function with all our operands
                 if sig.results.len() > 0 {
-                    self.push_str("let ret = ");
+                    self.src.push_str("const ret = ");
                     results.push("ret".to_string());
                 }
-                self.push_str(&func);
-                self.push_str("(");
-                self.push_str(&operands.join(", "));
-                self.push_str(");\n");
+                self.src.push_str(&func_name);
+                self.src.push_str("(");
+                self.src.push_str(&operands.join(", "));
+                self.src.push_str(");\n");
             }
         }
     }

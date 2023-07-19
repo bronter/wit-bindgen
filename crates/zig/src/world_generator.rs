@@ -65,7 +65,8 @@ impl wit_bindgen_core::WorldGenerator for WorldGenerator {
         iface: InterfaceId,
         files: &mut wit_bindgen_core::Files,
     ) {
-        let mut gen = InterfaceGenerator::new(self, resolve, iface, true);
+        let wasm_import_module = resolve.name_world_key(name);
+        let mut gen = InterfaceGenerator::new(wasm_import_module, self, resolve, iface, true);
         gen.generate();
         self.interface_srcs.insert(iface, gen.src);
         todo!("Looks like we need to write a function bindgen too before we have everything we need to do this.");

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use heck::{ToSnakeCase, ToUpperCamelCase, ToShoutySnakeCase};
 use wit_bindgen_core::wit_parser::*;
 use wit_component::StringEncoding;
@@ -5,6 +7,8 @@ use wit_component::StringEncoding;
 use crate::world_generator::{TypeInfo, WorldGenerator};
 
 pub struct InterfaceGenerator<'a> {
+    pub wasm_import_module: String,
+
     pub world_gen: &'a mut WorldGenerator,
     pub src: String,
 
@@ -13,7 +17,7 @@ pub struct InterfaceGenerator<'a> {
     // the imported functions within a struct. Not the prettiest solution,
     // but I've found no other way to do it in Zig without mangling the
     // name of the adapter function, which makes the interface ugly to use.
-    wasm_import_func_sigs: Vec<String>,
+    pub wasm_import_func_sigs: HashSet<String>,
 
     type_info: TypeInfo,
 
@@ -54,15 +58,17 @@ impl FieldName for EnumCase {
 
 impl<'a> InterfaceGenerator<'a> {
     pub fn new(
+        wasm_import_module: String,
         world_gen: &mut WorldGenerator,
         resolve: &'a Resolve,
         iface: InterfaceId,
         is_world: bool,
     ) -> InterfaceGenerator<'a> {
         InterfaceGenerator {
+            wasm_import_module,
             world_gen,
             src: String::new(),
-            wasm_import_func_sigs: Vec::new(),
+            wasm_import_func_sigs: HashSet::new(),
             type_info: Default::default(),
             is_world,
             string_type_name: Default::default(),
@@ -203,10 +209,10 @@ impl<'a> InterfaceGenerator<'a> {
         // If the struct's fields all match their canonical ABI representations,
         // we can pack the struct so that arrays of them can be lifted/lowered without
         // iterating.
-        let shouldPack = record.fields.iter()
+        let should_pack = record.fields.iter()
             .all(|f| self.is_canonical(&f.ty));
 
-        let mut res = if shouldPack {
+        let mut res = if should_pack {
             String::from("packed struct {")
         } else {
             String::from("struct {")
@@ -256,10 +262,10 @@ impl<'a> InterfaceGenerator<'a> {
         // If the struct's fields all match their canonical ABI representations,
         // we can pack the struct so that arrays of them can be lifted/lowered without
         // iterating.
-        let shouldPack = tuple.types.iter()
+        let should_pack = tuple.types.iter()
             .all(|ty| self.is_canonical(ty));
 
-        let mut res = if shouldPack {
+        let mut res = if should_pack {
             String::from("packed struct {")
         } else {
             String::from("struct {")
@@ -298,13 +304,13 @@ impl<'a> InterfaceGenerator<'a> {
     }
 
     fn enum_type_def<'b>(&mut self, id: &TypeId, e: &Enum) -> &'b str {
-        let tagType = match e.tag() {
+        let tag_type = match e.tag() {
             Int::U8 => "u8",
             Int::U16 => "u16",
             Int::U32 => "u32",
             Int::U64 => "u64",
         };
-        let mut res = format!("enum({tagType}) {{");
+        let mut res = format!("enum({tag_type}) {{");
         if e.cases.len() > 0 {
             res.push('\n');
         }
@@ -340,13 +346,13 @@ impl<'a> InterfaceGenerator<'a> {
     }
 
     fn union_type_def<'b>(&mut self, union: &Union) -> &'b str {
-        let tagType = match union.tag() {
+        let tag_type = match union.tag() {
             Int::U8 => "u8",
             Int::U16 => "u16",
             Int::U32 => "u32",
             Int::U64 => "u64",
         };
-        let mut res = format!("union(enum({tagType})) {{");
+        let mut res = format!("union(enum({tag_type})) {{");
         if union.cases.len() > 0 {
             res.push('\n');
         }
@@ -519,8 +525,8 @@ impl<'a> wit_bindgen_core::InterfaceGenerator<'a> for InterfaceGenerator<'a> {
         self.type_decl(&id, name, enum_type_def, docs);
     }
 
-    fn type_alias(&mut self, id: TypeId, dest_type_def: &str, sourceType: &Type, docs: &Docs) {
-        let src_type_def = self.type_def(sourceType);
+    fn type_alias(&mut self, id: TypeId, dest_type_def: &str, source_type: &Type, docs: &Docs) {
+        let src_type_def = self.type_def(source_type);
         self.type_decl(&id, dest_type_def, src_type_def, docs);
     }
 
