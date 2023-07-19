@@ -432,6 +432,8 @@ impl<'a> InterfaceGenerator<'a> {
                             TypeDefKind::List(ty) => self.list_type_def(ty),
                             TypeDefKind::Future(option) => unimplemented!("Waiting until implemented for C bindgen"),
                             TypeDefKind::Stream(stream) => unimplemented!("Waiting until implemented for C bindgen"),
+                            TypeDefKind::Resource => unimplemented!("Waiting until implemented for C bindgen"),
+                            TypeDefKind::Handle(handle) => unimplemented!("Waiting until implemented for C bindgen"),
                             TypeDefKind::Unknown => unreachable!(),
                         }
                     }
@@ -468,6 +470,8 @@ impl<'a> InterfaceGenerator<'a> {
                 | TypeDefKind::Stream(_)
                 | TypeDefKind::Union(_) => false,
                 TypeDefKind::Type(t) => self.is_canonical(t),
+                TypeDefKind::Handle(_) => true,
+                TypeDefKind::Resource => false,
                 TypeDefKind::Record(r) => r.fields.iter().all(|f| self.is_canonical(&f.ty)),
                 TypeDefKind::Tuple(t) => t.types.iter().all(|t| self.is_canonical(t)),
 
